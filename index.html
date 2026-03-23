@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wikipedia Autobiographical Promotion Detector</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Source+Sans+3:wght@300;400;500;600;700&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --salmon: #FFF1E5;
+  --salmon-dark: #F2DFCE;
+  --oxford: #0D1F3C;
+  --oxford-light: #1A3A6A;
+  --teal: #0D7680;
+  --teal-light: #0F9BA6;
+  --crimson: #CC0000;
+  --crimson-light: #E84040;
+  --amber: #F2A900;
+  --amber-light: #FFCD5B;
+  --paper: #FFF7EF;
+  --ink: #33302E;
+  --ink-light: #66605C;
+  --rule: #CCC1B7;
+  --score-high: #CC0000;
+  --score-mid: #E87722;
+  --score-low: #0D7680;
+  --font-serif: 'Source Serif 4', Georgia, serif;
+  --font-sans: 'Source Sans 3', 'Helvetica Neue', sans-serif;
+  --font-mono: 'Source Code Pro', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--salmon);
+  color: var(--ink);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+.masthead {
+  background: var(--oxford);
+  color: var(--salmon);
+  padding: 20px 0;
+  border-bottom: 4px solid var(--teal);
+}
+.masthead-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+.masthead h1 {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.masthead .subtitle {
+  font-size: 14px;
+  font-weight: 300;
+  opacity: 0.8;
+  margin-top: 4px;
+  letter-spacing: 0.3px;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Search Section */
+.search-section {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  margin: 28px 0 24px;
+  padding: 24px 28px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.search-section label {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--oxford);
+  margin-bottom: 4px;
+}
+
+.search-section .helper {
+  font-size: 13px;
+  color: var(--ink-light);
+  margin-bottom: 12px;
+}
+
+.search-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.search-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+#categoryInput {
+  width: 100%;
+  padding: 10px 14px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  border: 2px solid var(--rule);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s;
+}
+#categoryInput:focus {
+  border-color: var(--teal);
+}
+#categoryInput::placeholder {
+  color: #B3ACA6;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-top: none;
+  border-radius: 0 0 2px 2px;
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 100;
+  display: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.autocomplete-list.active { display: block; }
+
+.autocomplete-item {
+  padding: 9px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  border-bottom: 1px solid #f0ebe6;
+  transition: background 0.15s;
+}
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+  background: var(--salmon);
+  color: var(--oxford);
+}
+.autocomplete-item .cat-size {
+  font-size: 12px;
+  color: var(--ink-light);
+  margin-left: 6px;
+}
+
+.btn-analyze {
+  padding: 10px 24px;
+  background: var(--teal);
+  color: #fff;
+  border: none;
+  border-radius: 2px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.btn-analyze:hover { background: var(--teal-light); }
+.btn-analyze:disabled {
+  background: var(--rule);
+  cursor: not-allowed;
+}
+
+/* Settings row */
+.settings-row {
+  display: flex;
+  gap: 20px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.setting-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-light);
+}
+.setting-item select, .setting-item input[type=number] {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: #fff;
+}
+
+/* Progress */
+.progress-section {
+  margin: 0 0 20px;
+  display: none;
+}
+.progress-section.active { display: block; }
+
+.progress-bar-wrap {
+  background: var(--salmon-dark);
+  border-radius: 2px;
+  height: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--teal);
+  width: 0%;
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+.progress-text {
+  font-size: 13px;
+  color: var(--ink-light);
+}
+.progress-text .phase {
+  font-weight: 600;
+  color: var(--oxford);
+}
+
+/* Results Table */
+.results-section {
+  margin-bottom: 60px;
+  display: none;
+}
+.results-section.active { display: block; }
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 3px solid var(--oxford);
+  padding-bottom: 8px;
+  margin-bottom: 2px;
+}
+.results-header h2 {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--oxford);
+}
+.results-header .count {
+  font-size: 14px;
+  color: var(--ink-light);
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.results-table thead th {
+  text-align: left;
+  padding: 10px 8px;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--ink-light);
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.results-table thead th:hover { color: var(--oxford); }
+.results-table thead th.sorted { color: var(--oxford); }
+.results-table thead th .sort-arrow { font-size: 10px; margin-left: 3px; }
+
+.results-table tbody tr {
+  border-bottom: 1px solid #EDE7E0;
+  transition: background 0.15s;
+}
+.results-table tbody tr:hover { background: var(--paper); }
+
+.results-table td {
+  padding: 10px 8px;
+  vertical-align: top;
+}
+
+.article-title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--oxford-light);
+}
+.article-title a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+.article-title a:hover { border-bottom-color: var(--teal); }
+
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  padding: 3px 10px;
+  border-radius: 2px;
+  font-weight: 700;
+  font-size: 15px;
+  font-family: var(--font-mono);
+  color: #fff;
+}
+.score-high { background: var(--score-high); }
+.score-mid { background: var(--score-mid); }
+.score-low { background: var(--score-low); }
+
+.sub-scores {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+.sub-score {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.sub-score.hot { background: #FDDEDE; color: var(--crimson); }
+.sub-score.warm { background: #FEF0D5; color: #8A5A00; }
+.sub-score.cool { background: #DAF0F0; color: #065A62; }
+
+.mini-bar {
+  display: inline-block;
+  width: 50px;
+  height: 8px;
+  background: var(--salmon-dark);
+  border-radius: 1px;
+  overflow: hidden;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.mini-bar-fill {
+  height: 100%;
+  border-radius: 1px;
+}
+
+.editor-info {
+  font-size: 12px;
+  color: var(--ink-light);
+}
+.editor-highlight { color: var(--crimson); font-weight: 600; }
+
+td.num { text-align: right; font-family: var(--font-mono); font-size: 13px; }
+
+.analyzing-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--rule);
+  border-top-color: var(--teal);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Detail Expand */
+.detail-row { display: none; }
+.detail-row.open { display: table-row; }
+.detail-row td {
+  background: var(--paper);
+  padding: 14px 20px;
+  border-bottom: 2px solid var(--rule);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+.detail-card {
+  background: #fff;
+  padding: 12px 14px;
+  border-radius: 2px;
+  border: 1px solid var(--rule);
+}
+.detail-card h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--ink-light);
+  margin-bottom: 6px;
+}
+.detail-card .val {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--oxford);
+}
+.detail-card .desc {
+  font-size: 12px;
+  color: var(--ink-light);
+  margin-top: 4px;
+}
+.detail-citations {
+  margin-top: 6px;
+}
+.detail-citations .cite-domain {
+  font-size: 12px;
+  padding: 2px 6px;
+  background: var(--salmon);
+  border-radius: 2px;
+  display: inline-block;
+  margin: 2px 2px;
+  font-family: var(--font-mono);
+}
+.cite-domain.flagged { background: #FDDEDE; color: var(--crimson); }
+
+.toggle-btn {
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--ink-light);
+  font-family: var(--font-sans);
+  transition: all 0.15s;
+}
+.toggle-btn:hover { border-color: var(--teal); color: var(--teal); }
+
+/* Methodology */
+.methodology {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 20px 24px;
+  margin: 24px 0 40px;
+  font-size: 13px;
+  color: var(--ink-light);
+  line-height: 1.7;
+}
+.methodology summary {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--oxford);
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.methodology h4 {
+  color: var(--ink);
+  margin-top: 12px;
+  font-size: 13px;
+}
+.weight-table {
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+  max-width: 500px;
+}
+.weight-table td, .weight-table th {
+  padding: 4px 10px;
+  border-bottom: 1px solid #EDE7E0;
+  text-align: left;
+}
+.weight-table th { font-weight: 600; }
+
+.footer {
+  text-align: center;
+  padding: 24px;
+  font-size: 12px;
+  color: var(--ink-light);
+  border-top: 1px solid var(--rule);
+  margin-top: 40px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .search-row { flex-direction: column; }
+  .settings-row { flex-direction: column; gap: 10px; }
+  .results-table { font-size: 12px; }
+  .results-table td, .results-table th { padding: 8px 4px; }
+  .detail-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1>Wikipedia Autobiographical Promotion Detector</h1>
+    <div class="subtitle">Quantitative analysis of self-promotional signals in Wikipedia biographies</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="search-section">
+    <label for="categoryInput">Wikipedia Category</label>
+    <div class="helper">Enter a category name to analyse its articles for autobiographical promotion signals. Works best with biography categories.</div>
+    <div class="search-row">
+      <div class="search-wrapper">
+        <input type="text" id="categoryInput" placeholder="e.g. Indian women scientists, Nigerian novelists, Swedish radiologists..." autocomplete="off">
+        <div class="autocomplete-list" id="autocompleteList"></div>
+      </div>
+      <button class="btn-analyze" id="analyzeBtn" onclick="startAnalysis()">Analyse</button>
+    </div>
+    <div class="settings-row">
+      <div class="setting-item">
+        <label for="maxArticles">Max articles:</label>
+        <input type="number" id="maxArticles" value="50" min="5" max="200" step="5">
+      </div>
+      <div class="setting-item">
+        <label for="depthRevisions">Revisions depth:</label>
+        <select id="depthRevisions">
+          <option value="50">50 (fast)</option>
+          <option value="150" selected>150 (balanced)</option>
+          <option value="500">500 (thorough)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="progress-section" id="progressSection">
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+    <div class="progress-text" id="progressText">
+      <span class="phase">Initialising...</span>
+    </div>
+  </div>
+
+  <div class="results-section" id="resultsSection">
+    <div class="results-header">
+      <h2 id="resultsTitle">Results</h2>
+      <span class="count" id="resultsCount"></span>
+    </div>
+    <table class="results-table">
+      <thead>
+        <tr id="tableHead">
+          <th data-col="rank" style="width:40px">#</th>
+          <th data-col="title">Article</th>
+          <th data-col="score" class="sorted">POV Score <span class="sort-arrow">▼</span></th>
+          <th data-col="editorConc">Editors</th>
+          <th data-col="lengthAnomaly">Length</th>
+          <th data-col="peacock">Peacock</th>
+          <th data-col="citations">Citations</th>
+          <th data-col="account">Account</th>
+          <th style="width:40px"></th>
+        </tr>
+      </thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+  </div>
+
+  <details class="methodology">
+    <summary>Methodology &amp; Scoring</summary>
+    <p>Each article is scored across five dimensions. Sub-scores are normalised to 0–1 and combined with the following weights:</p>
+    <table class="weight-table">
+      <tr><th>Signal</th><th>Weight</th><th>What it measures</th></tr>
+      <tr><td>Editor Concentration</td><td>30%</td><td>Byte share of top editor via revision history. High = one person wrote almost everything.</td></tr>
+      <tr><td>Peacock Language</td><td>25%</td><td>Density of promotional/superlative terms (WP:PEACOCK + WP:WEASEL word lists).</td></tr>
+      <tr><td>Length Anomaly</td><td>20%</td><td>Article size relative to the category median. Outsized articles score higher.</td></tr>
+      <tr><td>Citation Quality</td><td>15%</td><td>Proportion of references using self-published, primary, or obscure sources.</td></tr>
+      <tr><td>Account Signals</td><td>10%</td><td>Whether the creator/top editor is a new or single-purpose account.</td></tr>
+    </table>
+    <h4>Interpretation</h4>
+    <p>Scores ≥ 0.65 (red) suggest strong autobiographical promotion signals. Scores 0.40–0.65 (amber) warrant a closer look. Scores &lt; 0.40 (teal) are likely organic. This is a heuristic — always verify manually before taking action.</p>
+    <h4>Limitations</h4>
+    <p>The tool uses the MediaWiki API with limited revision depth (configurable). Token-level authorship (WikiWho) is not used. Citation analysis checks domain patterns, not full source reliability. Some legitimate articles about obscure-but-notable people may score high.</p>
+  </details>
+
+</div>
+
+<footer class="footer">
+  Built for Wikipedia editors · Queries the MediaWiki API in real time · No data stored
+</footer>
+
+<script>
+// ========================
+// CONFIG & CONSTANTS
+// ========================
+
+const PEACOCK_WORDS = [
+  'renowned','leading','prestigious','world-class','eminent','distinguished',
+  'acclaimed','groundbreaking','pioneering','legendary','visionary','iconic',
+  'celebrated','influential','prominent','brilliant','genius','mastermind',
+  'extraordinary','remarkable','outstanding','exceptional','preeminent',
+  'trailblazing','cutting-edge','state-of-the-art','best-known','widely known',
+  'well-known','famous','notable','award-winning','critically acclaimed',
+  'highly regarded','widely regarded','one of the most','one of the best',
+  'one of the leading','one of the foremost','considered one of',
+  'important','significant','major','key','vital','crucial',
+  'top','premier','elite','world-renowned','internationally recognized',
+  'globally recognized','most popular','most successful'
+];
+
+const WEASEL_PHRASES = [
+  'some say','it is said','many believe','it is believed','many consider',
+  'widely considered','generally considered','often considered','is considered',
+  'is regarded','is thought','many people','some people','most people',
+  'experts say','experts believe','critics say','sources say','reportedly',
+  'it has been said','according to some','there are those who'
+];
+
+const SELF_PUB_PATTERNS = [
+  /linkedin\.com/i, /researchgate\.net/i, /academia\.edu/i,
+  /wordpress\.com/i, /blogspot\.com/i, /medium\.com/i,
+  /wix\.com/i, /weebly\.com/i, /squarespace\.com/i,
+  /about\.me/i, /\.personal\./i, /~\w+/i,
+  /facebook\.com/i, /twitter\.com/i, /instagram\.com/i,
+  /youtube\.com/i, /imdb\.com\/name/i,
+  /amazon\.com.*author/i
+];
+
+const RELIABLE_DOMAINS = [
+  'nytimes.com','bbc.co.uk','bbc.com','reuters.com','theguardian.com',
+  'washingtonpost.com','nature.com','science.org','thelancet.com',
+  'bmj.com','nejm.org','pubmed.ncbi.nlm.nih.gov','doi.org',
+  'jstor.org','springer.com','wiley.com','elsevier.com',
+  'economist.com','ft.com','wsj.com','apnews.com','npr.org',
+  'thehindu.com','ndtv.com','aljazeera.com','dw.com',
+  'lemonde.fr','elpais.com','spiegel.de','svt.se','dn.se'
+];
+
+const WEIGHTS = {
+  editorConc: 0.30,
+  peacock: 0.25,
+  lengthAnomaly: 0.20,
+  citations: 0.15,
+  account: 0.10
+};
+
+// ========================
+// STATE
+// ========================
+let analysisResults = [];
+let categoryArticles = [];
+let currentSort = { col: 'score', asc: false };
+let isRunning = false;
+
+// ========================
+// API HELPERS
+// ========================
+
+function apiBase() {
+  return 'https://en.wikipedia.org/w/api.php';
+}
+
+async function apiFetch(params) {
+  const url = new URL(apiBase());
+  params.format = 'json';
+  params.origin = '*';
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+  const resp = await fetch(url.toString());
+  if (!resp.ok) throw new Error(`API ${resp.status}`);
+  return resp.json();
+}
+
+async function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+// ========================
+// AUTOCOMPLETE
+// ========================
+
+let acTimeout = null;
+const input = document.getElementById('categoryInput');
+const acList = document.getElementById('autocompleteList');
+let acIndex = -1;
+
+input.addEventListener('input', () => {
+  clearTimeout(acTimeout);
+  acTimeout = setTimeout(() => fetchSuggestions(input.value.trim()), 200);
+});
+
+input.addEventListener('focus', () => {
+  if (input.value.trim().length >= 2 && acList.children.length > 0) {
+    acList.classList.add('active');
+  }
+});
+
+input.addEventListener('keydown', (e) => {
+  const items = acList.querySelectorAll('.autocomplete-item');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    acIndex = Math.min(acIndex + 1, items.length - 1);
+    updateAcSelection(items);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    acIndex = Math.max(acIndex - 1, 0);
+    updateAcSelection(items);
+  } else if (e.key === 'Enter') {
+    if (acIndex >= 0 && items[acIndex]) {
+      selectCategory(items[acIndex].dataset.title);
+    } else {
+      startAnalysis();
+    }
+  } else if (e.key === 'Escape') {
+    acList.classList.remove('active');
+  }
+});
+
+function updateAcSelection(items) {
+  items.forEach((el, i) => el.classList.toggle('selected', i === acIndex));
+}
+
+async function fetchSuggestions(query) {
+  if (query.length < 2) { acList.classList.remove('active'); return; }
+  try {
+    // Use both prefix search and category search for better matching
+    const [prefixData, searchData] = await Promise.all([
+      apiFetch({
+        action: 'query',
+        list: 'allcategories',
+        acprefix: query,
+        aclimit: '8',
+        acprop: 'size'
+      }),
+      apiFetch({
+        action: 'query',
+        list: 'search',
+        srsearch: query,
+        srnamespace: '14',
+        srlimit: '8'
+      })
+    ]);
+
+    const prefixCats = (prefixData.query?.allcategories || []).map(c => ({
+      name: c['*'],
+      pages: c.pages ?? null
+    }));
+
+    const searchCats = (searchData.query?.search || []).map(c => ({
+      name: c.title.replace(/^Category:/, ''),
+      pages: null
+    }));
+
+    // Merge, dedupe, prefix results first
+    const seen = new Set();
+    const merged = [];
+    for (const c of [...prefixCats, ...searchCats]) {
+      if (!seen.has(c.name)) {
+        seen.add(c.name);
+        merged.push(c);
+      }
+    }
+
+    if (merged.length === 0) { acList.classList.remove('active'); return; }
+
+    // For search results that lack page counts, batch-fetch sizes
+    const needSize = merged.filter(c => c.pages === null).map(c => c.name);
+    if (needSize.length > 0) {
+      try {
+        const sizeData = await apiFetch({
+          action: 'query',
+          prop: 'categoryinfo',
+          titles: needSize.map(n => 'Category:' + n).join('|')
+        });
+        const pages = sizeData.query?.pages || {};
+        for (const p of Object.values(pages)) {
+          const catName = (p.title || '').replace(/^Category:/, '');
+          const entry = merged.find(c => c.name === catName);
+          if (entry) entry.pages = p.categoryinfo?.pages ?? 0;
+        }
+      } catch(e) { /* ignore */ }
+    }
+
+    acList.innerHTML = merged.slice(0, 12).map(c => {
+      const countLabel = c.pages != null ? `<span class="cat-size">${c.pages} page${c.pages !== 1 ? 's' : ''}</span>` : '';
+      return `<div class="autocomplete-item" data-title="${escHtml(c.name)}" onclick="selectCategory('${escJs(c.name)}')">${escHtml(c.name)}${countLabel}</div>`;
+    }).join('');
+    acIndex = -1;
+    acList.classList.add('active');
+  } catch(e) { /* ignore */ }
+}
+
+function selectCategory(title) {
+  input.value = title;
+  acList.classList.remove('active');
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-wrapper')) acList.classList.remove('active');
+});
+
+// ========================
+// MAIN ANALYSIS
+// ========================
+
+async function startAnalysis() {
+  const cat = input.value.trim();
+  if (!cat) return;
+
+  // Prevent double-run
+  if (isRunning) return;
+  isRunning = true;
+
+  const maxArticles = parseInt(document.getElementById('maxArticles').value) || 50;
+  const revDepth = parseInt(document.getElementById('depthRevisions').value) || 150;
+  const lang = 'en';
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Analysing…';
+
+  const progSection = document.getElementById('progressSection');
+  const progBar = document.getElementById('progressBar');
+  const progText = document.getElementById('progressText');
+  const resultsSection = document.getElementById('resultsSection');
+  const resultsBody = document.getElementById('resultsBody');
+
+  progSection.classList.add('active');
+  resultsSection.classList.add('active');
+  resultsBody.innerHTML = '';
+  analysisResults = [];
+  progBar.style.width = '0%';
+  progText.innerHTML = '<span class="phase">Fetching category members…</span>';
+
+  try {
+    // Phase 1: Fetch category members
+    categoryArticles = await fetchCategoryMembers(cat, maxArticles);
+    if (categoryArticles.length === 0) {
+      progText.innerHTML = '<span class="phase">No articles found in this category.</span>';
+      isRunning = false;
+      btn.disabled = false;
+      btn.textContent = 'Analyse';
+      return;
+    }
+
+    document.getElementById('resultsTitle').textContent = `Category: ${cat}`;
+    document.getElementById('resultsCount').textContent = `${categoryArticles.length} articles`;
+
+    // Phase 2: Compute category median size
+    const sizes = categoryArticles.map(a => a.size).sort((a,b) => a - b);
+    const medianSize = sizes[Math.floor(sizes.length / 2)];
+    const meanSize = sizes.reduce((s,v) => s+v, 0) / sizes.length;
+
+    // Phase 3: Analyse each article
+    const total = categoryArticles.length;
+    for (let i = 0; i < total; i++) {
+      const article = categoryArticles[i];
+      progBar.style.width = `${Math.round(((i+1)/total)*100)}%`;
+      progText.innerHTML = `<span class="phase">Analysing ${i+1}/${total}:</span> ${escHtml(article.title)}`;
+
+      try {
+        const result = await analyseArticle(article, revDepth, medianSize, meanSize);
+        analysisResults.push(result);
+        renderResults();
+      } catch(e) {
+        // Skip failed articles
+        analysisResults.push({
+          title: article.title,
+          pageid: article.pageid,
+          size: article.size,
+          score: 0,
+          scores: { editorConc: 0, peacock: 0, lengthAnomaly: 0, citations: 0, account: 0 },
+          details: { error: e.message },
+          failed: true
+        });
+        renderResults();
+      }
+
+      // Rate limit: small delay between articles
+      if (i < total - 1) await sleep(200);
+    }
+
+    progText.innerHTML = `<span class="phase">Complete.</span> ${total} articles analysed.`;
+
+  } catch(e) {
+    progText.innerHTML = `<span class="phase">Error:</span> ${escHtml(e.message)}`;
+  }
+
+  isRunning = false;
+  btn.disabled = false;
+  btn.textContent = 'Analyse';
+}
+
+async function fetchCategoryMembers(cat, max) {
+  let articles = [];
+  let cmcontinue = null;
+  const limit = Math.min(max, 50);
+
+  while (articles.length < max) {
+    const params = {
+      action: 'query',
+      list: 'categorymembers',
+      cmtitle: `Category:${cat}`,
+      cmtype: 'page',
+      cmnamespace: '0',
+      cmlimit: String(limit),
+      cmprop: 'ids|title'
+    };
+    if (cmcontinue) params.cmcontinue = cmcontinue;
+
+    const data = await apiFetch(params);
+    const members = data.query?.categorymembers || [];
+    if (members.length === 0) break;
+
+    // Get page sizes in batch
+    const ids = members.map(m => m.pageid).join('|');
+    const infoData = await apiFetch({
+      action: 'query',
+      pageids: ids,
+      prop: 'info'
+    });
+    const pages = infoData.query?.pages || {};
+
+    for (const m of members) {
+      const pinfo = pages[m.pageid];
+      articles.push({
+        pageid: m.pageid,
+        title: m.title,
+        size: pinfo?.length || 0
+      });
+      if (articles.length >= max) break;
+    }
+
+    cmcontinue = data.continue?.cmcontinue;
+    if (!cmcontinue) break;
+    await sleep(100);
+  }
+  return articles;
+}
+
+// ========================
+// ARTICLE ANALYSIS
+// ========================
+
+async function analyseArticle(article, revDepth, medianSize, meanSize) {
+  // Fetch revisions and wikitext in parallel
+  const [revData, wtData] = await Promise.all([
+    fetchRevisions(article.pageid, revDepth),
+    fetchWikitext(article.title)
+  ]);
+
+  const revisions = revData.revisions || [];
+  const wikitext = wtData.wikitext || '';
+  const creator = revData.creator || '';
+  const creatorRegDate = revData.creatorRegDate;
+
+  // 1. Editor concentration
+  const editorStats = computeEditorConcentration(revisions);
+
+  // 2. Length anomaly
+  const lengthScore = computeLengthAnomaly(article.size, medianSize, meanSize);
+
+  // 3. Peacock language
+  const peacockResult = computePeacock(wikitext);
+
+  // 4. Citations
+  const citationResult = computeCitations(wikitext);
+
+  // 5. Account signals
+  const accountResult = await computeAccountSignals(creator, article.title, creatorRegDate, revisions);
+
+  // Composite
+  const scores = {
+    editorConc: editorStats.score,
+    peacock: peacockResult.score,
+    lengthAnomaly: lengthScore.score,
+    citations: citationResult.score,
+    account: accountResult.score
+  };
+  const composite = Object.entries(WEIGHTS).reduce((sum, [k, w]) => sum + scores[k] * w, 0);
+
+  return {
+    title: article.title,
+    pageid: article.pageid,
+    size: article.size,
+    score: composite,
+    scores,
+    details: {
+      editorStats,
+      lengthScore,
+      peacockResult,
+      citationResult,
+      accountResult,
+      totalRevisions: revisions.length,
+      creator
+    }
+  };
+}
+
+async function fetchRevisions(pageid, limit) {
+  let revisions = [];
+  let rvcontinue = null;
+  let creator = '';
+  let creatorRegDate = null;
+
+  // Fetch in batches
+  while (revisions.length < limit) {
+    const batchSize = Math.min(limit - revisions.length, 50);
+    const params = {
+      action: 'query',
+      pageids: String(pageid),
+      prop: 'revisions',
+      rvprop: 'user|size|timestamp|ids',
+      rvlimit: String(batchSize),
+      rvdir: 'newer'
+    };
+    if (rvcontinue) params.rvcontinue = rvcontinue;
+
+    const data = await apiFetch(params);
+    const page = Object.values(data.query?.pages || {})[0];
+    const revs = page?.revisions || [];
+    if (revs.length === 0) break;
+
+    revisions = revisions.concat(revs);
+    rvcontinue = data.continue?.rvcontinue;
+    if (!rvcontinue) break;
+    await sleep(50);
+  }
+
+  if (revisions.length > 0) {
+    creator = revisions[0].user || '';
+    // Get creator registration date
+    try {
+      const udata = await apiFetch({
+        action: 'query',
+        list: 'users',
+        ususers: creator,
+        usprop: 'registration'
+      });
+      const u = udata.query?.users?.[0];
+      if (u?.registration) creatorRegDate = new Date(u.registration);
+    } catch(e) { /* ignore */ }
+  }
+
+  return { revisions, creator, creatorRegDate };
+}
+
+async function fetchWikitext(title) {
+  try {
+    const data = await apiFetch({
+      action: 'query',
+      titles: title,
+      prop: 'revisions',
+      rvprop: 'content',
+      rvslots: 'main',
+      rvlimit: '1'
+    });
+    const pages = data.query?.pages || {};
+    const page = Object.values(pages)[0];
+    const wt = page?.revisions?.[0]?.slots?.main?.['*'] || page?.revisions?.[0]?.['*'] || '';
+    return { wikitext: wt };
+  } catch(e) {
+    return { wikitext: '' };
+  }
+}
+
+// ========================
+// SCORING FUNCTIONS
+// ========================
+
+function computeEditorConcentration(revisions) {
+  if (revisions.length === 0) return { score: 0, topEditor: '', topShare: 0, numEditors: 0 };
+
+  // Compute bytes added per editor
+  const editorBytes = {};
+  let prevSize = 0;
+  for (const rev of revisions) {
+    const user = rev.user || 'Anonymous';
+    const delta = Math.max(0, (rev.size || 0) - prevSize); // Only count additions
+    editorBytes[user] = (editorBytes[user] || 0) + delta;
+    prevSize = rev.size || 0;
+  }
+
+  const totalAdded = Object.values(editorBytes).reduce((s,v) => s+v, 0);
+  if (totalAdded === 0) return { score: 0, topEditor: '', topShare: 0, numEditors: Object.keys(editorBytes).length };
+
+  const sorted = Object.entries(editorBytes).sort((a,b) => b[1] - a[1]);
+  const topEditor = sorted[0][0];
+  const topShare = sorted[0][1] / totalAdded;
+  const top2Share = sorted.length > 1 ? (sorted[0][1] + sorted[1][1]) / totalAdded : topShare;
+  const numEditors = sorted.length;
+
+  // Score: high if top editor dominates
+  // topShare >= 0.9 → 1.0, topShare <= 0.2 → 0
+  let score;
+  if (numEditors <= 2) {
+    score = Math.min(1, topShare * 1.1); // Boost for very few editors
+  } else {
+    score = Math.pow(topShare, 0.7); // Slightly sub-linear
+  }
+  score = clamp(score);
+
+  return { score, topEditor, topShare, top2Share, numEditors, editorBytes: sorted.slice(0, 5) };
+}
+
+function computeLengthAnomaly(size, median, mean) {
+  if (median === 0) return { score: 0, ratio: 0 };
+  const ratio = size / median;
+  // ratio 1 = normal, 3+ = suspicious
+  // Use log scale: score = log2(ratio) / log2(10) clamped
+  let score = 0;
+  if (ratio > 1) {
+    score = Math.log2(ratio) / Math.log2(8); // ratio 8x = score 1.0
+  }
+  return { score: clamp(score), ratio, median, mean };
+}
+
+function computePeacock(wikitext) {
+  // Strip refs and templates to avoid false positives
+  const cleaned = wikitext
+    .replace(/<ref[^>]*>.*?<\/ref>/gs, '')
+    .replace(/<ref[^>]*\/>/g, '')
+    .replace(/\{\{[^}]*\}\}/g, '')
+    .replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, '$2') // Keep link text
+    .replace(/<[^>]+>/g, '')
+    .toLowerCase();
+
+  const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+  const totalWords = words.length;
+  if (totalWords === 0) return { score: 0, count: 0, density: 0, found: [] };
+
+  const found = [];
+  let count = 0;
+  const allTerms = [...PEACOCK_WORDS, ...WEASEL_PHRASES];
+
+  for (const term of allTerms) {
+    const regex = new RegExp('\\b' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi');
+    const matches = cleaned.match(regex);
+    if (matches) {
+      count += matches.length;
+      found.push({ term, count: matches.length });
+    }
+  }
+
+  const density = count / totalWords;
+  // density of 0.01 (1%) → high score; 0.002 → moderate
+  let score = density / 0.012;
+  // Also factor in absolute count
+  if (count >= 10) score = Math.max(score, 0.7);
+  if (count >= 20) score = Math.max(score, 0.9);
+
+  found.sort((a,b) => b.count - a.count);
+
+  return { score: clamp(score), count, density, found: found.slice(0, 10), totalWords };
+}
+
+function computeCitations(wikitext) {
+  // Extract URLs from refs
+  const refRegex = /<ref[^>]*>(.*?)<\/ref>/gs;
+  const urlRegex = /(?:url|URL)\s*=\s*([^\s|}<]+)|https?:\/\/[^\s|}<\]]+/g;
+  const refs = [];
+  let match;
+
+  while ((match = refRegex.exec(wikitext)) !== null) {
+    refs.push(match[1]);
+  }
+
+  const urls = [];
+  for (const ref of refs) {
+    let um;
+    while ((um = urlRegex.exec(ref)) !== null) {
+      urls.push(um[1] || um[0]);
+    }
+  }
+
+  const totalRefs = refs.length;
+  if (totalRefs === 0) return { score: 0.5, totalRefs: 0, urls: [], selfPubCount: 0, reliableCount: 0, noUrlRefs: 0 };
+  // No-URL refs count (might be books, which are fine, or might be vague)
+  const noUrlRefs = totalRefs - urls.length;
+
+  // Extract domains
+  const domains = urls.map(u => {
+    try {
+      const parsed = new URL(u.startsWith('http') ? u : 'https://' + u);
+      return parsed.hostname.replace(/^www\./, '');
+    } catch { return null; }
+  }).filter(Boolean);
+
+  let selfPubCount = 0;
+  let reliableCount = 0;
+  const domainCounts = {};
+
+  for (const d of domains) {
+    domainCounts[d] = (domainCounts[d] || 0) + 1;
+    if (SELF_PUB_PATTERNS.some(p => p.test(d))) selfPubCount++;
+    if (RELIABLE_DOMAINS.some(rd => d.includes(rd))) reliableCount++;
+  }
+
+  // Score components
+  const selfPubRatio = selfPubCount / Math.max(1, domains.length);
+  const reliableRatio = reliableCount / Math.max(1, domains.length);
+  const fewRefsScore = totalRefs < 5 ? 0.3 : 0;
+
+  // More self-pub = higher score, more reliable = lower score
+  let score = (selfPubRatio * 0.5) + ((1 - reliableRatio) * 0.3) + fewRefsScore;
+
+  // If very few refs overall, that's suspicious for a long article
+  if (totalRefs < 3) score = Math.max(score, 0.5);
+
+  const topDomains = Object.entries(domainCounts).sort((a,b) => b[1] - a[1]).slice(0, 8);
+
+  return {
+    score: clamp(score),
+    totalRefs,
+    selfPubCount,
+    reliableCount,
+    noUrlRefs,
+    urls: topDomains,
+    uniqueDomains: Object.keys(domainCounts).length
+  };
+}
+
+async function computeAccountSignals(creator, articleTitle, regDate, revisions) {
+  if (!creator) return { score: 0, isNew: false, isSPA: false };
+
+  let isNew = false;
+  let isSPA = false;
+  let accountAge = null;
+  let spaRatio = 0;
+
+  // Check account age at time of article creation
+  if (regDate && revisions.length > 0) {
+    const creationDate = new Date(revisions[0].timestamp);
+    accountAge = (creationDate - regDate) / (1000 * 60 * 60 * 24); // days
+    isNew = accountAge < 30;
+  }
+
+  // Check if creator is SPA - sample their recent edits
+  try {
+    const contribs = await apiFetch({
+      action: 'query',
+      list: 'usercontribs',
+      ucuser: creator,
+      uclimit: '50',
+      ucprop: 'title'
+    });
+    const edits = contribs.query?.usercontribs || [];
+    if (edits.length > 0) {
+      const onThisArticle = edits.filter(e => e.title === articleTitle).length;
+      spaRatio = onThisArticle / edits.length;
+      isSPA = spaRatio > 0.5;
+    }
+  } catch(e) { /* ignore */ }
+
+  let score = 0;
+  if (isNew) score += 0.4;
+  if (isSPA) score += 0.5;
+  if (spaRatio > 0.3 && spaRatio <= 0.5) score += 0.2;
+  score = clamp(score);
+
+  return { score, isNew, isSPA, accountAge, spaRatio, creator };
+}
+
+function clamp(v) { return Math.max(0, Math.min(1, v)); }
+
+// ========================
+// RENDERING
+// ========================
+
+function renderResults() {
+  const sorted = [...analysisResults].sort((a, b) => {
+    let va = a[currentSort.col === 'title' ? 'title' : (currentSort.col === 'score' ? 'score' : `scores.${currentSort.col}`)];
+    let vb = b[currentSort.col === 'title' ? 'title' : (currentSort.col === 'score' ? 'score' : `scores.${currentSort.col}`)];
+
+    if (currentSort.col === 'title') {
+      return currentSort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    // Handle nested scores
+    if (currentSort.col !== 'score' && currentSort.col !== 'title') {
+      va = a.scores?.[currentSort.col] ?? 0;
+      vb = b.scores?.[currentSort.col] ?? 0;
+    }
+    return currentSort.asc ? va - vb : vb - va;
+  });
+
+  const lang = 'en';
+  const body = document.getElementById('resultsBody');
+  body.innerHTML = sorted.map((r, i) => {
+    const rank = i + 1;
+    const scoreClass = r.score >= 0.65 ? 'score-high' : (r.score >= 0.40 ? 'score-mid' : 'score-low');
+    const ed = r.details?.editorStats || {};
+    const pea = r.details?.peacockResult || {};
+    const cit = r.details?.citationResult || {};
+    const acc = r.details?.accountResult || {};
+    const len = r.details?.lengthScore || {};
+    const rowId = `row-${r.pageid}`;
+
+    return `
+      <tr>
+        <td class="num">${rank}</td>
+        <td class="article-title">
+          <a href="https://${lang}.wikipedia.org/wiki/${encodeURIComponent(r.title)}" target="_blank">${escHtml(r.title)}</a>
+          <div style="font-size:11px;color:var(--ink-light);font-family:var(--font-mono);margin-top:2px">
+            ${formatBytes(r.size)}
+          </div>
+        </td>
+        <td>
+          <span class="score-badge ${scoreClass}">${(r.score * 100).toFixed(0)}</span>
+        </td>
+        <td>
+          ${miniBar(r.scores.editorConc)}
+          <div class="editor-info">
+            ${ed.numEditors != null ? `${ed.numEditors} editors` : '—'}
+            ${ed.topShare != null ? `<br><span class="${ed.topShare > 0.7 ? 'editor-highlight' : ''}">Top: ${(ed.topShare*100).toFixed(0)}%</span>` : ''}
+          </div>
+        </td>
+        <td>
+          ${miniBar(r.scores.lengthAnomaly)}
+          <div class="editor-info">${len.ratio != null ? len.ratio.toFixed(1) + '× median' : '—'}</div>
+        </td>
+        <td>
+          ${miniBar(r.scores.peacock)}
+          <div class="editor-info">${pea.count != null ? pea.count + ' terms' : '—'}</div>
+        </td>
+        <td>
+          ${miniBar(r.scores.citations)}
+          <div class="editor-info">
+            ${cit.totalRefs != null ? cit.totalRefs + ' refs' : '—'}
+            ${cit.selfPubCount ? `<br><span class="editor-highlight">${cit.selfPubCount} self-pub</span>` : ''}
+          </div>
+        </td>
+        <td>
+          ${miniBar(r.scores.account)}
+          <div class="editor-info">
+            ${acc.isSPA ? '<span class="editor-highlight">SPA</span>' : ''}
+            ${acc.isNew ? '<span class="editor-highlight">New</span>' : ''}
+            ${!acc.isSPA && !acc.isNew ? '—' : ''}
+          </div>
+        </td>
+        <td><button class="toggle-btn" onclick="toggleDetail('${rowId}')">+</button></td>
+      </tr>
+      <tr class="detail-row" id="${rowId}">
+        <td colspan="9">
+          ${renderDetail(r)}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderDetail(r) {
+  const ed = r.details?.editorStats || {};
+  const pea = r.details?.peacockResult || {};
+  const cit = r.details?.citationResult || {};
+  const acc = r.details?.accountResult || {};
+  const len = r.details?.lengthScore || {};
+
+  if (r.failed) return `<div style="color:var(--crimson)">Analysis failed: ${escHtml(r.details?.error || 'Unknown error')}</div>`;
+
+  const lang = 'en';
+
+  return `
+    <div class="detail-grid">
+      <div class="detail-card">
+        <h4>Editor Concentration</h4>
+        <div class="val">${ed.topShare != null ? (ed.topShare*100).toFixed(1) + '%' : '—'}</div>
+        <div class="desc">
+          Top editor: <a href="https://${lang}.wikipedia.org/wiki/User:${encodeURIComponent(ed.topEditor || '')}" target="_blank" style="color:var(--teal)">${escHtml(ed.topEditor || '?')}</a><br>
+          ${ed.numEditors || 0} unique editors, ${r.details?.totalRevisions || 0} revisions analysed<br>
+          ${ed.editorBytes ? ed.editorBytes.map(([u,b]) =>
+            `<span style="font-size:11px">${escHtml(u)}: ${formatBytes(b)}</span>`
+          ).join('<br>') : ''}
+        </div>
+      </div>
+      <div class="detail-card">
+        <h4>Length Anomaly</h4>
+        <div class="val">${len.ratio != null ? len.ratio.toFixed(2) + '×' : '—'}</div>
+        <div class="desc">
+          Article: ${formatBytes(r.size)}<br>
+          Category median: ${formatBytes(len.median || 0)}<br>
+          Category mean: ${formatBytes(Math.round(len.mean || 0))}
+        </div>
+      </div>
+      <div class="detail-card">
+        <h4>Peacock Language</h4>
+        <div class="val">${pea.count != null ? pea.count + ' terms' : '—'}</div>
+        <div class="desc">
+          Density: ${pea.density != null ? (pea.density * 100).toFixed(3) + '%' : '—'} of ${pea.totalWords || 0} words<br>
+          ${pea.found?.length ? 'Top: ' + pea.found.slice(0, 5).map(f =>
+            `<span class="sub-score hot">${escHtml(f.term)} ×${f.count}</span>`
+          ).join(' ') : 'None found'}
+        </div>
+      </div>
+      <div class="detail-card">
+        <h4>Citation Quality</h4>
+        <div class="val">${cit.totalRefs || 0} refs</div>
+        <div class="desc">
+          Self-published: ${cit.selfPubCount || 0} · Reliable: ${cit.reliableCount || 0} · No-URL: ${cit.noUrlRefs || 0}<br>
+          <div class="detail-citations">
+            ${cit.urls?.map(([d, c]) => {
+              const flagged = SELF_PUB_PATTERNS.some(p => p.test(d));
+              return `<span class="cite-domain ${flagged ? 'flagged' : ''}">${escHtml(d)} (${c})</span>`;
+            }).join('') || 'No URLs found'}
+          </div>
+        </div>
+      </div>
+      <div class="detail-card">
+        <h4>Account Signals</h4>
+        <div class="val">${acc.score > 0.5 ? '⚠ Flagged' : 'Normal'}</div>
+        <div class="desc">
+          Creator: <a href="https://${lang}.wikipedia.org/wiki/User:${encodeURIComponent(acc.creator || '')}" target="_blank" style="color:var(--teal)">${escHtml(acc.creator || '?')}</a><br>
+          Account age at creation: ${acc.accountAge != null ? Math.round(acc.accountAge) + ' days' : 'Unknown'}<br>
+          SPA ratio: ${acc.spaRatio != null ? (acc.spaRatio * 100).toFixed(0) + '%' : 'Unknown'}
+          ${acc.isSPA ? '<br><span class="editor-highlight">Single-purpose account detected</span>' : ''}
+          ${acc.isNew ? '<br><span class="editor-highlight">New account at time of creation</span>' : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function miniBar(score) {
+  const pct = Math.round((score || 0) * 100);
+  const color = score >= 0.65 ? 'var(--score-high)' : (score >= 0.40 ? 'var(--score-mid)' : 'var(--score-low)');
+  return `<div class="mini-bar"><div class="mini-bar-fill" style="width:${pct}%;background:${color}"></div></div><span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-light)">${pct}</span>`;
+}
+
+function toggleDetail(id) {
+  const row = document.getElementById(id);
+  if (row) row.classList.toggle('open');
+}
+
+function formatBytes(b) {
+  if (b >= 1024) return (b/1024).toFixed(1) + ' KB';
+  return b + ' B';
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+function escJs(s) {
+  return (s || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// ========================
+// COLUMN SORTING
+// ========================
+
+document.getElementById('tableHead').addEventListener('click', (e) => {
+  const th = e.target.closest('th');
+  if (!th || !th.dataset.col) return;
+  const col = th.dataset.col;
+
+  if (currentSort.col === col) {
+    currentSort.asc = !currentSort.asc;
+  } else {
+    currentSort.col = col;
+    currentSort.asc = col === 'title'; // Title ascending by default, scores descending
+  }
+
+  // Update header styles
+  document.querySelectorAll('#tableHead th').forEach(t => {
+    t.classList.remove('sorted');
+    const arrow = t.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = '';
+  });
+  th.classList.add('sorted');
+  let arrow = th.querySelector('.sort-arrow');
+  if (!arrow) {
+    arrow = document.createElement('span');
+    arrow.className = 'sort-arrow';
+    th.appendChild(arrow);
+  }
+  arrow.textContent = currentSort.asc ? '▲' : '▼';
+
+  renderResults();
+});
+</script>
+</body>
+</html>
