@@ -461,6 +461,19 @@ td.num { text-align: right; font-family: var(--font-mono); font-size: 13px; }
   color: var(--oxford);
   cursor: pointer;
   margin-bottom: 8px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.methodology summary::-webkit-details-marker { display: none; }
+.methodology summary::marker { display: none; content: ''; }
+.methodology summary .chevron {
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+.methodology[open] summary .chevron {
+  transform: rotate(90deg);
 }
 .methodology h4 {
   color: var(--ink);
@@ -587,7 +600,7 @@ td.num { text-align: right; font-family: var(--font-mono); font-size: 13px; }
   </div>
 
   <details class="methodology">
-    <summary>Methodology &amp; Scoring</summary>
+    <summary><svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--oxford)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10" stroke-opacity="0.4"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Methodology &amp; Scoring</summary>
     <p>Each article is scored across five dimensions. Sub-scores are normalised to 0–1 and combined with the following weights:</p>
     <table class="weight-table">
       <tr><th>Signal</th><th>Weight</th><th>What it measures</th></tr>
