@@ -161,7 +161,7 @@ body {
 }
 
 .btn-analyze {
-  padding: 10px 24px;
+  padding: 10px 22px;
   background: var(--teal);
   color: #fff;
   border: none;
@@ -172,7 +172,11 @@ body {
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
+.btn-analyze svg { flex-shrink: 0; }
 .btn-analyze:hover { background: var(--teal-light); }
 .btn-analyze:disabled {
   background: var(--rule);
@@ -500,8 +504,13 @@ td.num { text-align: right; font-family: var(--font-mono); font-size: 13px; }
 
 <header class="masthead">
   <div class="masthead-inner">
-    <h1>Wikipedia Autobiographical Promotion Detector</h1>
-    <div class="subtitle">Quantitative analysis of self-promotional signals in Wikipedia biographies</div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--salmon)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.9"><circle cx="10" cy="10" r="7" stroke-opacity="0.85"/><line x1="7" y1="8" x2="7" y2="12" stroke="var(--teal-light)" stroke-width="2"/><line x1="10" y1="6" x2="10" y2="12" stroke="var(--amber)" stroke-width="2"/><line x1="13" y1="9" x2="13" y2="12" stroke="var(--crimson-light)" stroke-width="2"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+      <div>
+        <h1>Wikipedia Autobiographical Promotion Detector</h1>
+        <div class="subtitle">Quantitative analysis of self-promotional signals in Wikipedia biographies</div>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -515,7 +524,7 @@ td.num { text-align: right; font-family: var(--font-mono); font-size: 13px; }
         <input type="text" id="categoryInput" placeholder="e.g. Swedish sprinters, Indian medical doctors..." autocomplete="off">
         <div class="autocomplete-list" id="autocompleteList"></div>
       </div>
-      <button class="btn-analyze" id="analyzeBtn" onclick="startAnalysis()">Analyse</button>
+      <button class="btn-analyze" id="analyzeBtn" onclick="startAnalysis()" title="Scan articles for 5 promotion signals: editor concentration, peacock language, length anomaly, citation quality, and account age"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><line x1="7" y1="8" x2="7" y2="12" opacity="0.6"/><line x1="10" y1="6" x2="10" y2="12" opacity="0.8"/><line x1="13" y1="9" x2="13" y2="12" opacity="0.5"/><line x1="15" y1="15" x2="21" y2="21"/></svg><span>Analyse</span></button>
     </div>
     <div class="settings-row">
       <div class="setting-item">
@@ -829,7 +838,7 @@ async function startAnalysis() {
 
   const btn = document.getElementById('analyzeBtn');
   btn.disabled = true;
-  btn.textContent = 'Analysing…';
+  btn.querySelector('span').textContent = 'Analysing…';
 
   const progSection = document.getElementById('progressSection');
   const progBar = document.getElementById('progressBar');
@@ -851,7 +860,7 @@ async function startAnalysis() {
       progText.innerHTML = '<span class="phase">No biography articles found in this category.</span>';
       isRunning = false;
       btn.disabled = false;
-      btn.textContent = 'Analyse';
+      btn.querySelector('span').textContent = 'Analyse';
       return;
     }
 
@@ -900,7 +909,7 @@ async function startAnalysis() {
 
   isRunning = false;
   btn.disabled = false;
-  btn.textContent = 'Analyse';
+  btn.querySelector('span').textContent = 'Analyse';
 }
 
 async function fetchCategoryMembers(cat, max, includeSubcats, subcatDepth) {
