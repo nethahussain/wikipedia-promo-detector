@@ -695,14 +695,22 @@ function apiBase() {
   return 'https://en.wikipedia.org/w/api.php';
 }
 
-async function apiFetch(params) {
+async function apiFetch(params, retries = 3) {
   const url = new URL(apiBase());
   params.format = 'json';
   params.origin = '*';
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
-  const resp = await fetch(url.toString());
-  if (!resp.ok) throw new Error(`API ${resp.status}`);
-  return resp.json();
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const resp = await fetch(url.toString());
+    if (resp.status === 429) {
+      const wait = Math.min(2000 * Math.pow(2, attempt), 15000);
+      await sleep(wait);
+      continue;
+    }
+    if (!resp.ok) throw new Error(`API ${resp.status}`);
+    return resp.json();
+  }
+  throw new Error('API rate limited (429) — try again in a minute');
 }
 
 async function sleep(ms) {
@@ -720,7 +728,7 @@ let acIndex = -1;
 
 input.addEventListener('input', () => {
   clearTimeout(acTimeout);
-  acTimeout = setTimeout(() => fetchSuggestions(input.value.trim()), 200);
+  acTimeout = setTimeout(() => fetchSuggestions(input.value.trim()), 400);
 });
 
 input.addEventListener('focus', () => {
@@ -755,68 +763,24 @@ function updateAcSelection(items) {
 }
 
 async function fetchSuggestions(query) {
-  if (query.length < 2) { acList.classList.remove('active'); return; }
+  if (query.length < 3) { acList.classList.remove('active'); return; }
   try {
-    // Use both prefix search and category search for better matching
-    const [prefixData, searchData] = await Promise.all([
-      apiFetch({
-        action: 'query',
-        list: 'allcategories',
-        acprefix: query,
-        aclimit: '8',
-        acprop: 'size'
-      }),
-      apiFetch({
-        action: 'query',
-        list: 'search',
-        srsearch: query,
-        srnamespace: '14',
-        srlimit: '8'
-      })
-    ]);
-
-    const prefixCats = (prefixData.query?.allcategories || []).map(c => ({
+    const data = await apiFetch({
+      action: 'query',
+      list: 'allcategories',
+      acprefix: query,
+      aclimit: '10',
+      acprop: 'size'
+    });
+    const cats = (data.query?.allcategories || []).map(c => ({
       name: c['*'],
-      pages: c.pages ?? null
+      pages: c.pages ?? 0
     }));
 
-    const searchCats = (searchData.query?.search || []).map(c => ({
-      name: c.title.replace(/^Category:/, ''),
-      pages: null
-    }));
+    if (cats.length === 0) { acList.classList.remove('active'); return; }
 
-    // Merge, dedupe, prefix results first
-    const seen = new Set();
-    const merged = [];
-    for (const c of [...prefixCats, ...searchCats]) {
-      if (!seen.has(c.name)) {
-        seen.add(c.name);
-        merged.push(c);
-      }
-    }
-
-    if (merged.length === 0) { acList.classList.remove('active'); return; }
-
-    // For search results that lack page counts, batch-fetch sizes
-    const needSize = merged.filter(c => c.pages === null).map(c => c.name);
-    if (needSize.length > 0) {
-      try {
-        const sizeData = await apiFetch({
-          action: 'query',
-          prop: 'categoryinfo',
-          titles: needSize.map(n => 'Category:' + n).join('|')
-        });
-        const pages = sizeData.query?.pages || {};
-        for (const p of Object.values(pages)) {
-          const catName = (p.title || '').replace(/^Category:/, '');
-          const entry = merged.find(c => c.name === catName);
-          if (entry) entry.pages = p.categoryinfo?.pages ?? 0;
-        }
-      } catch(e) { /* ignore */ }
-    }
-
-    acList.innerHTML = merged.slice(0, 12).map(c => {
-      const countLabel = c.pages != null ? `<span class="cat-size">${c.pages} page${c.pages !== 1 ? 's' : ''}</span>` : '';
+    acList.innerHTML = cats.map(c => {
+      const countLabel = `<span class="cat-size">${c.pages} page${c.pages !== 1 ? 's' : ''}</span>`;
       return `<div class="autocomplete-item" data-title="${escHtml(c.name)}" onclick="selectCategory('${escJs(c.name)}')">${escHtml(c.name)}${countLabel}</div>`;
     }).join('');
     acIndex = -1;
@@ -913,7 +877,7 @@ async function startAnalysis() {
       }
 
       // Rate limit: small delay between articles
-      if (i < total - 1) await sleep(200);
+      if (i < total - 1) await sleep(500);
     }
 
     progText.innerHTML = `<span class="phase">Complete.</span> ${total} articles analysed.`;
@@ -1033,7 +997,7 @@ async function fetchCategoryMembers(cat, max, includeSubcats, subcatDepth) {
 
       cmcontinue = data.continue?.cmcontinue;
       if (!cmcontinue) break;
-      await sleep(100);
+      await sleep(300);
     }
   }
 
@@ -1083,7 +1047,7 @@ async function fetchSubcategories(cat, maxDepth, articleCap) {
       }
       cmcontinue = data.continue?.cmcontinue;
       if (!cmcontinue || result.length >= 100) break;
-      await sleep(50);
+      await sleep(200);
     }
   }
   return result;
@@ -1094,11 +1058,9 @@ async function fetchSubcategories(cat, maxDepth, articleCap) {
 // ========================
 
 async function analyseArticle(article, revDepth, medianSize, meanSize) {
-  // Fetch revisions and wikitext in parallel
-  const [revData, wtData] = await Promise.all([
-    fetchRevisions(article.pageid, revDepth),
-    fetchWikitext(article.title)
-  ]);
+  // Fetch sequentially to avoid rate limiting
+  const revData = await fetchRevisions(article.pageid, revDepth);
+  const wtData = await fetchWikitext(article.title);
 
   const revisions = revData.revisions || [];
   const wikitext = wtData.wikitext || '';
@@ -1175,7 +1137,7 @@ async function fetchRevisions(pageid, limit) {
     revisions = revisions.concat(revs);
     rvcontinue = data.continue?.rvcontinue;
     if (!rvcontinue) break;
-    await sleep(50);
+    await sleep(200);
   }
 
   if (revisions.length > 0) {
