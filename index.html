@@ -519,8 +519,20 @@ td.num { text-align: right; font-family: var(--font-mono); font-size: 13px; }
     </div>
     <div class="settings-row">
       <div class="setting-item">
+        <input type="checkbox" id="includeSubcats" style="margin:0">
+        <label for="includeSubcats" style="cursor:pointer">Include subcategories</label>
+      </div>
+      <div class="setting-item">
+        <label for="subcatDepth">Subcategory depth:</label>
+        <select id="subcatDepth">
+          <option value="1" selected>1 level</option>
+          <option value="2">2 levels</option>
+          <option value="3">3 levels</option>
+        </select>
+      </div>
+      <div class="setting-item">
         <label for="maxArticles">Max articles:</label>
-        <input type="number" id="maxArticles" value="50" min="5" max="200" step="5">
+        <input type="number" id="maxArticles" value="50" min="5" max="500" step="5">
       </div>
       <div class="setting-item">
         <label for="depthRevisions">Revisions depth:</label>
@@ -811,6 +823,8 @@ async function startAnalysis() {
 
   const maxArticles = parseInt(document.getElementById('maxArticles').value) || 50;
   const revDepth = parseInt(document.getElementById('depthRevisions').value) || 150;
+  const includeSubcats = document.getElementById('includeSubcats').checked;
+  const subcatDepth = parseInt(document.getElementById('subcatDepth').value) || 1;
   const lang = 'en';
 
   const btn = document.getElementById('analyzeBtn');
@@ -832,9 +846,9 @@ async function startAnalysis() {
 
   try {
     // Phase 1: Fetch category members
-    categoryArticles = await fetchCategoryMembers(cat, maxArticles);
+    categoryArticles = await fetchCategoryMembers(cat, maxArticles, includeSubcats, subcatDepth);
     if (categoryArticles.length === 0) {
-      progText.innerHTML = '<span class="phase">No articles found in this category.</span>';
+      progText.innerHTML = '<span class="phase">No biography articles found in this category.</span>';
       isRunning = false;
       btn.disabled = false;
       btn.textContent = 'Analyse';
@@ -889,95 +903,166 @@ async function startAnalysis() {
   btn.textContent = 'Analyse';
 }
 
-async function fetchCategoryMembers(cat, max) {
-  let articles = [];
-  let cmcontinue = null;
-  const limit = Math.min(max, 50);
+async function fetchCategoryMembers(cat, max, includeSubcats, subcatDepth) {
+  const articles = [];
+  const seenIds = new Set();
   let skipped = 0;
+  const progText = document.getElementById('progressText');
 
-  while (articles.length < max) {
-    const params = {
-      action: 'query',
-      list: 'categorymembers',
-      cmtitle: `Category:${cat}`,
-      cmtype: 'page',
-      cmnamespace: '0',
-      cmlimit: String(limit),
-      cmprop: 'ids|title'
-    };
-    if (cmcontinue) params.cmcontinue = cmcontinue;
+  // Collect all category names to process
+  const categories = [cat];
+  if (includeSubcats) {
+    progText.innerHTML = '<span class="phase">Discovering subcategories…</span>';
+    const subcats = await fetchSubcategories(cat, subcatDepth, max);
+    categories.push(...subcats);
+    progText.innerHTML = `<span class="phase">Found ${categories.length} categories.</span> Fetching articles…`;
+    await sleep(400);
+  }
 
-    const data = await apiFetch(params);
-    const members = data.query?.categorymembers || [];
-    if (members.length === 0) break;
+  // Process each category
+  for (let ci = 0; ci < categories.length && articles.length < max; ci++) {
+    const currentCat = categories[ci];
+    let cmcontinue = null;
 
-    // Batch fetch page info + categories to filter biographies only
-    const ids = members.map(m => m.pageid).join('|');
-    const infoData = await apiFetch({
-      action: 'query',
-      pageids: ids,
-      prop: 'info|categories',
-      cllimit: 'max',
-      clcategories: 'Category:Living people|Category:Possibly living people'
-    });
-    const pages = infoData.query?.pages || {};
-
-    // For pages not in "Living people", check for birth/death year categories
-    const needBirthCheck = [];
-    for (const m of members) {
-      const p = pages[m.pageid];
-      const cats = p?.categories || [];
-      const hasBioCategory = cats.some(c => {
-        const name = c.title || '';
-        return name === 'Category:Living people' || name === 'Category:Possibly living people';
-      });
-      if (hasBioCategory) {
-        articles.push({ pageid: m.pageid, title: m.title, size: p?.length || 0 });
-      } else {
-        needBirthCheck.push(m);
-      }
-      if (articles.length >= max) break;
+    if (includeSubcats) {
+      progText.innerHTML = `<span class="phase">Category ${ci + 1}/${categories.length}:</span> ${currentCat}`;
     }
 
-    // Second pass: check remaining for birth/death year categories
-    if (needBirthCheck.length > 0 && articles.length < max) {
-      const ids2 = needBirthCheck.map(m => m.pageid).join('|');
-      const catData = await apiFetch({
+    while (articles.length < max) {
+      const params = {
         action: 'query',
-        pageids: ids2,
-        prop: 'categories',
-        cllimit: 'max'
-      });
-      const catPages = catData.query?.pages || {};
-      for (const m of needBirthCheck) {
-        const p = catPages[m.pageid];
-        const cats = (p?.categories || []).map(c => c.title || '');
-        const isBio = cats.some(c =>
-          /\bbirths$/.test(c) || /\bdeaths$/.test(c) ||
-          c.includes('Living people') || c.includes('Possibly living people')
-        );
-        if (isBio) {
-          const pinfo = pages[m.pageid];
-          articles.push({ pageid: m.pageid, title: m.title, size: pinfo?.length || 0 });
-        } else {
-          skipped++;
-        }
-        if (articles.length >= max) break;
-      }
-    }
+        list: 'categorymembers',
+        cmtitle: `Category:${currentCat}`,
+        cmtype: 'page',
+        cmnamespace: '0',
+        cmlimit: '50',
+        cmprop: 'ids|title'
+      };
+      if (cmcontinue) params.cmcontinue = cmcontinue;
 
-    cmcontinue = data.continue?.cmcontinue;
-    if (!cmcontinue) break;
-    await sleep(100);
+      const data = await apiFetch(params);
+      const members = data.query?.categorymembers || [];
+      if (members.length === 0) break;
+
+      // Deduplicate across categories
+      const newMembers = members.filter(m => !seenIds.has(m.pageid));
+      newMembers.forEach(m => seenIds.add(m.pageid));
+      if (newMembers.length === 0) {
+        cmcontinue = data.continue?.cmcontinue;
+        if (!cmcontinue) break;
+        continue;
+      }
+
+      // Batch fetch page info + categories to filter biographies
+      const ids = newMembers.map(m => m.pageid).join('|');
+      const infoData = await apiFetch({
+        action: 'query',
+        pageids: ids,
+        prop: 'info|categories',
+        cllimit: 'max',
+        clcategories: 'Category:Living people|Category:Possibly living people'
+      });
+      const pages = infoData.query?.pages || {};
+
+      const needBirthCheck = [];
+      for (const m of newMembers) {
+        if (articles.length >= max) break;
+        const p = pages[m.pageid];
+        const cats = p?.categories || [];
+        const hasBioCategory = cats.some(c => {
+          const name = c.title || '';
+          return name === 'Category:Living people' || name === 'Category:Possibly living people';
+        });
+        if (hasBioCategory) {
+          articles.push({ pageid: m.pageid, title: m.title, size: p?.length || 0, fromCategory: currentCat });
+        } else {
+          needBirthCheck.push(m);
+        }
+      }
+
+      // Second pass: birth/death year categories
+      if (needBirthCheck.length > 0 && articles.length < max) {
+        const ids2 = needBirthCheck.map(m => m.pageid).join('|');
+        const catData = await apiFetch({
+          action: 'query',
+          pageids: ids2,
+          prop: 'categories',
+          cllimit: 'max'
+        });
+        const catPages = catData.query?.pages || {};
+        for (const m of needBirthCheck) {
+          if (articles.length >= max) break;
+          const p = catPages[m.pageid];
+          const cats = (p?.categories || []).map(c => c.title || '');
+          const isBio = cats.some(c =>
+            /\bbirths$/.test(c) || /\bdeaths$/.test(c) ||
+            c.includes('Living people') || c.includes('Possibly living people')
+          );
+          if (isBio) {
+            const pinfo = pages[m.pageid];
+            articles.push({ pageid: m.pageid, title: m.title, size: pinfo?.length || 0, fromCategory: currentCat });
+          } else {
+            skipped++;
+          }
+        }
+      }
+
+      cmcontinue = data.continue?.cmcontinue;
+      if (!cmcontinue) break;
+      await sleep(100);
+    }
   }
 
   if (skipped > 0) {
-    const progText = document.getElementById('progressText');
     progText.innerHTML = `<span class="phase">Filtered:</span> ${skipped} non-biography article${skipped !== 1 ? 's' : ''} skipped`;
     await sleep(800);
   }
 
   return articles;
+}
+
+async function fetchSubcategories(cat, maxDepth, articleCap) {
+  const result = [];
+  const seen = new Set([cat]);
+  let queue = [{ name: cat, depth: 0 }];
+
+  while (queue.length > 0) {
+    const { name, depth } = queue.shift();
+    if (depth >= maxDepth) continue;
+    // Safety cap: don't discover more than 100 subcategories
+    if (result.length >= 100) break;
+
+    let cmcontinue = null;
+    while (true) {
+      const params = {
+        action: 'query',
+        list: 'categorymembers',
+        cmtitle: `Category:${name}`,
+        cmtype: 'subcat',
+        cmlimit: '50',
+        cmprop: 'title'
+      };
+      if (cmcontinue) params.cmcontinue = cmcontinue;
+
+      const data = await apiFetch(params);
+      const subcats = data.query?.categorymembers || [];
+      for (const sc of subcats) {
+        const scName = sc.title.replace(/^Category:/, '');
+        if (!seen.has(scName)) {
+          seen.add(scName);
+          result.push(scName);
+          if (depth + 1 < maxDepth) {
+            queue.push({ name: scName, depth: depth + 1 });
+          }
+        }
+        if (result.length >= 100) break;
+      }
+      cmcontinue = data.continue?.cmcontinue;
+      if (!cmcontinue || result.length >= 100) break;
+      await sleep(50);
+    }
+  }
+  return result;
 }
 
 // ========================
@@ -1486,6 +1571,17 @@ function escHtml(s) {
 function escJs(s) {
   return (s || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
 }
+
+// ========================
+// SUBCATEGORY TOGGLE
+// ========================
+
+const subcatCheckbox = document.getElementById('includeSubcats');
+const subcatDepthEl = document.getElementById('subcatDepth');
+subcatDepthEl.parentElement.style.display = 'none';
+subcatCheckbox.addEventListener('change', () => {
+  subcatDepthEl.parentElement.style.display = subcatCheckbox.checked ? 'flex' : 'none';
+});
 
 // ========================
 // COLUMN SORTING
