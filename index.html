@@ -509,7 +509,7 @@ td.num { text-align: right; font-family: var(--font-mono); font-size: 13px; }
 
   <div class="search-section">
     <label for="categoryInput">Wikipedia Category</label>
-    <div class="helper">Enter a category name to analyse its articles for autobiographical promotion signals. Works best with biography categories.</div>
+    <div class="helper">Enter a category name to analyse its biography articles for autobiographical promotion signals. Non-biography articles are automatically filtered out.</div>
     <div class="search-row">
       <div class="search-wrapper">
         <input type="text" id="categoryInput" placeholder="e.g. Indian women scientists, Nigerian novelists, Swedish radiologists..." autocomplete="off">
@@ -893,6 +893,7 @@ async function fetchCategoryMembers(cat, max) {
   let articles = [];
   let cmcontinue = null;
   const limit = Math.min(max, 50);
+  let skipped = 0;
 
   while (articles.length < max) {
     const params = {
@@ -910,29 +911,72 @@ async function fetchCategoryMembers(cat, max) {
     const members = data.query?.categorymembers || [];
     if (members.length === 0) break;
 
-    // Get page sizes in batch
+    // Batch fetch page info + categories to filter biographies only
     const ids = members.map(m => m.pageid).join('|');
     const infoData = await apiFetch({
       action: 'query',
       pageids: ids,
-      prop: 'info'
+      prop: 'info|categories',
+      cllimit: 'max',
+      clcategories: 'Category:Living people|Category:Possibly living people'
     });
     const pages = infoData.query?.pages || {};
 
+    // For pages not in "Living people", check for birth/death year categories
+    const needBirthCheck = [];
     for (const m of members) {
-      const pinfo = pages[m.pageid];
-      articles.push({
-        pageid: m.pageid,
-        title: m.title,
-        size: pinfo?.length || 0
+      const p = pages[m.pageid];
+      const cats = p?.categories || [];
+      const hasBioCategory = cats.some(c => {
+        const name = c.title || '';
+        return name === 'Category:Living people' || name === 'Category:Possibly living people';
       });
+      if (hasBioCategory) {
+        articles.push({ pageid: m.pageid, title: m.title, size: p?.length || 0 });
+      } else {
+        needBirthCheck.push(m);
+      }
       if (articles.length >= max) break;
+    }
+
+    // Second pass: check remaining for birth/death year categories
+    if (needBirthCheck.length > 0 && articles.length < max) {
+      const ids2 = needBirthCheck.map(m => m.pageid).join('|');
+      const catData = await apiFetch({
+        action: 'query',
+        pageids: ids2,
+        prop: 'categories',
+        cllimit: 'max'
+      });
+      const catPages = catData.query?.pages || {};
+      for (const m of needBirthCheck) {
+        const p = catPages[m.pageid];
+        const cats = (p?.categories || []).map(c => c.title || '');
+        const isBio = cats.some(c =>
+          /\bbirths$/.test(c) || /\bdeaths$/.test(c) ||
+          c.includes('Living people') || c.includes('Possibly living people')
+        );
+        if (isBio) {
+          const pinfo = pages[m.pageid];
+          articles.push({ pageid: m.pageid, title: m.title, size: pinfo?.length || 0 });
+        } else {
+          skipped++;
+        }
+        if (articles.length >= max) break;
+      }
     }
 
     cmcontinue = data.continue?.cmcontinue;
     if (!cmcontinue) break;
     await sleep(100);
   }
+
+  if (skipped > 0) {
+    const progText = document.getElementById('progressText');
+    progText.innerHTML = `<span class="phase">Filtered:</span> ${skipped} non-biography article${skipped !== 1 ? 's' : ''} skipped`;
+    await sleep(800);
+  }
+
   return articles;
 }
 
